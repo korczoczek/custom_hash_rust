@@ -1,0 +1,11 @@
+[package]
+name = "custom_hash"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+base64 = "0.22.1"
+clap = { version = "4.6.1", features = ["derive"] }
+clap_derive = "4.6.1"
+ctrlc = "3.5.2"
+sha256 = "1.6.0"
