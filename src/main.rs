@@ -20,7 +20,7 @@ enum Mode{
 }
 
 #[derive(Parser)]
-#[command(version, name = "custom_hash")]
+#[command(version = "1.0", name = "custom_hash")]
 #[command(about = "Derives custom sha256 hashes", long_about = None)]
 struct Cli {
     ///Starting content of the message
