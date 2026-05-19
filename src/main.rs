@@ -1,10 +1,11 @@
-use std::{io::{self, Write}, time::Duration};
-use sha256::{digest};
-use std::sync::{Arc, Mutex};
-use std::thread;
 use clap::{Parser, ValueEnum};
 use ctrlc;
+use num_cpus;
+use sha256::{digest};
+use std::{io::{self, Write}, thread::sleep, time::Duration};
 use std::process;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum Mode{
@@ -20,7 +21,7 @@ enum Mode{
 }
 
 #[derive(Parser)]
-#[command(version = "1.0", name = "custom_hash")]
+#[command(version = "1.1", name = "custom_hash")]
 #[command(about = "Derives custom sha256 hashes", long_about = None)]
 struct Cli {
     ///Starting content of the message
@@ -46,6 +47,10 @@ struct Cli {
     ///Starting count
     #[arg(short, long, default_value_t = 1)]
     count: usize,
+
+    ///CPU load (in whole percents)
+    #[arg(short, long, default_value_t = 50)]
+    load: usize,
 }
 
 
@@ -208,8 +213,19 @@ fn main() {
         String::from(" ")
     };
 
-    const THREADS:usize = 8;
-    const THREAD_SIZE:usize = 2_usize.pow(17); //131 072
+
+    let cpus = num_cpus::get();
+    let threads:usize = (((cli.load as f32) / 100_f32) * (cpus as f32)).floor() as usize;
+    let threads:usize = 
+        if threads == 0{
+            1
+        } else {
+            threads
+        };
+    const THREAD_SIZE:usize = 2_usize.pow(16); //65 536
+
+    println!("Finding hash of \"{}\" containing key \"{}\".\nUsing {} threads",&message, &key, threads);
+    sleep(Duration::from_secs(1));
 
     let idx = Arc::new(Mutex::new(base_x_to_int(&cli.index, &hex_list))); 
     let max_count = Arc::new(Mutex::new(start_max_count.clone()));
@@ -243,7 +259,7 @@ fn main() {
 
 
 
-    for _ in 0..THREADS {
+    for _ in 0..threads {
         let idx = Arc::clone(&idx);
         let max_count = Arc::clone(&max_count);
         let print_mutex = Arc::clone(&print_mutex);
@@ -262,27 +278,43 @@ fn main() {
                 let mut idx_lock = idx.lock().unwrap();
                 let size = *idx_lock;
 
+                let mut hex_init:String;
+                let mut hex:String;
+                let mut hit: bool;
+
                 *idx_lock = size + THREAD_SIZE;
 
                 std::mem::drop(idx_lock);
 
                 for i in size..(size + THREAD_SIZE) {
 
-                    let hex_init: String = format!("{}{}{}", &message, &sep, int_to_base_x(i, &hex_list));
+                    hex_init = format!("{}{}{}", &message, &sep, int_to_base_x(i, &hex_list));
 
-                    let hex: String = digest(&hex_init);
+                    hex = digest(&hex_init);
 
                     count = match mode {
                         Mode::Start => start_count(&hex, &key),
                         Mode::Scatter => scatter_count(&hex, &key),
                         Mode::Chunk => chunk_count(&hex, &key)
                     };
+                    
+                    hit = if cli.all {
+                        count >= local_max_count
+                    }else{
+                        count > local_max_count
+                    };
 
-                    if count >= local_max_count{
+                    if hit{
                         let mut max_count_lock = max_count.lock().unwrap();
                         local_max_count = *max_count_lock;
                         
-                        if count >= local_max_count{
+                        hit = if cli.all {
+                            count >= local_max_count
+                        }else{
+                            count > local_max_count
+                        };
+
+                        if hit{
                             *max_count_lock = count;
                             let print_lock = print_mutex.lock().unwrap();
                             match mode {
