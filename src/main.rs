@@ -17,11 +17,14 @@ enum Mode{
     Scatter,
 
     /// Check for the biggest uninterrupted chunk of the key
-    Chunk
+    Chunk,
+
+    /// Check for the longest chain of repeated symbols (no key)
+    Repeat
 }
 
 #[derive(Parser)]
-#[command(version = "1.1", name = "custom_hash")]
+#[command(version = "1.2", name = "custom_hash")]
 #[command(about = "Derives custom sha256 hashes", long_about = None)]
 struct Cli {
     ///Starting content of the message
@@ -178,7 +181,35 @@ fn chunk_count(search: &String, find: &String) -> usize {
     }
 
     return max_count;
+}
 
+fn repeat_count(search: &String) -> usize{
+    
+    if search.is_empty() {
+        return 0;
+    }
+
+    let mut count:usize = 0;
+    let mut max_count:usize = 1;
+
+    let search_chars:Vec<char> = search.chars().collect();
+    let mut prev_char: char = search_chars[0];
+
+    for char in search_chars{
+        if char == prev_char{
+            count += 1;
+            max_count = if count > max_count{
+                count
+            }else{
+                max_count
+            };
+        }else{
+            count = 1;
+            prev_char = char;
+        }
+    }
+
+    return max_count;
 }
 
 fn is_hex(text:&String) -> bool{
@@ -295,7 +326,8 @@ fn main() {
                     count = match mode {
                         Mode::Start => start_count(&hex, &key),
                         Mode::Scatter => scatter_count(&hex, &key),
-                        Mode::Chunk => chunk_count(&hex, &key)
+                        Mode::Chunk => chunk_count(&hex, &key),
+                        Mode::Repeat => repeat_count(&hex),
                     };
                     
                     hit = if cli.all {
@@ -320,7 +352,8 @@ fn main() {
                             match mode {
                                 Mode::Start => println!("\rFound sha256 hash starting with \"{}\" ({} characters):", &hex[0..count], count),
                                 Mode::Scatter => println!("\rFound sha256 hash with {} instances of the \"{}\" key", count, &key),
-                                Mode::Chunk => println!("\rFound sha256 hash with a {} character long chunk of \"{}\"", count, &key)
+                                Mode::Chunk => println!("\rFound sha256 hash with a {} character long chunk of \"{}\"", count, &key),
+                                Mode::Repeat => println!("\rFound sha256 has with a {} character long repeat chunk", count),
                             }
                             
                             println!("{}",&hex_init);
@@ -349,8 +382,10 @@ fn main() {
         let message = message.clone();
         let sep = sep.clone();
         let mut prev_idx:usize = 0;
+
+        let sleep_time = Duration::from_secs(1);
         loop{
-            thread::sleep(Duration::from_secs(1));
+            thread::sleep(sleep_time);
             let idx_lock = idx.lock().unwrap();
             let print_lock = print_mutex.lock().unwrap();
             print!("\r{}{}{} ({}/s)     ", &message, &sep, int_to_base_x(*idx_lock, &hex_list), *idx_lock - prev_idx);
