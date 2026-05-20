@@ -9,9 +9,10 @@ Arguments:
   [INDEX]    Starting index of the search in base62 [default: 0]
 
 Options:
-  -m, --mode <MODE>    Checking mode [default: start] [possible values: start, scatter, chunk]
+  -m, --mode <MODE>    Checking mode [default: start] [possible values: start, scatter, chunk, repeat]
   -a, --all            Find as many examples at the current depth
   -c, --count <COUNT>  Starting count [default: 1]
+  -l, --load <LOAD>    CPU load (in whole percents) [default: 50]
   -h, --help           Print help (see more with '--help')
   -V, --version        Print version
 ```
